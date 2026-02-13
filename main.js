@@ -1,18 +1,5 @@
-const MAX_ROUNDS = 5;
+const MAX_POINTS = 5;
 const CHOICES = ["rock", "scissors", "paper"];
-
-function getComputerChoice() {
-  const randomIndex = Math.floor(Math.random() * CHOICES.length);
-  return CHOICES[randomIndex];
-}
-
-function getHumanChoice() {
-  // get user input
-  let userInput = window.prompt("Enter your choice: rock, paper or scissors");
-  console.log(userInput);
-
-  return userInput ? userInput.trim() : ""; // safe string
-}
 
 // paper beats rock
 // scissors beats paper
@@ -23,61 +10,121 @@ const winsAgainst = {
   scissors: "paper",
 };
 
+function normalizeChoice(string) {
+  return string.trim().toLowerCase();
+}
+
+function getComputerChoice() {
+  const randomIndex = Math.floor(Math.random() * CHOICES.length);
+  return CHOICES[randomIndex];
+}
+
 function playRound(humanChoice, computerChoice) {
-  const normalizedHumanChoice = humanChoice.trim().toLowerCase();
-  const normalizedComputerChoice = computerChoice.trim().toLowerCase();
+  const human = normalizeChoice(humanChoice);
+  const computer = normalizeChoice(computerChoice);
 
-  if (
-    !winsAgainst[normalizedHumanChoice] ||
-    !winsAgainst[normalizedComputerChoice]
-  ) {
-    console.log("Invalid choice.");
-    return { human: 0, computer: 0 };
+  const valid = winsAgainst[human] && winsAgainst[computer];
+  if (!valid) {
+    return { human: 0, computer: 0, message: "INVALID" };
   }
 
-  if (winsAgainst[normalizedHumanChoice] === normalizedComputerChoice) {
-    console.log(
-      `You win! ${normalizedHumanChoice} beats ${normalizedComputerChoice}`,
-    );
-    return { human: 1, computer: 0 };
-  } else if (winsAgainst[normalizedComputerChoice] === normalizedHumanChoice) {
-    console.log(
-      `You lose! ${normalizedComputerChoice} beats ${normalizedHumanChoice}`,
-    );
-    return { human: 0, computer: 1 };
-  } else {
-    // if equal this is a draw and no one wins
-    console.log("DRAW!");
-    return { human: 0, computer: 0 };
+  if (human === computer) {
+    return { human: 0, computer: 0, message: "DRAW" };
   }
+
+  const humanWins = winsAgainst[human] === computer;
+
+  return humanWins
+    ? { human: 1, computer: 0, message: `You win! ${human} beats ${computer}` }
+    : {
+        human: 0,
+        computer: 1,
+        message: `You lose! ${computer} beats ${human}`,
+      };
+}
+
+function createGameUI(root = document) {
+  const controls = root.querySelector(".controls");
+  const display = root.querySelector(".display");
+
+  if (!controls || !display) {
+    throw new Error("Expected .controls and .display elements in the DOM!");
+  }
+
+  let results = root.querySelector(".results");
+  if (!results) {
+    results = root.createElement("div");
+    results.classList.add("results");
+    controls.insertAdjacentElement("afterend", results);
+  }
+
+  const buttons = Array.from(controls.querySelectorAll("button"));
+
+  if (buttons.length === 0) {
+    throw new Error("Expected buttons inside .controls");
+  }
+
+  return { controls, display, results, buttons };
 }
 
 function playGame() {
-  let humanScore = 0;
-  let computerScore = 0;
+  const ui = createGameUI();
 
-  let roundsPlayed = 0;
+  const state = {
+    humanScore: 0,
+    computerScore: 0,
+    gameOver: false,
+    lastMessage: "",
+  };
 
-  while (roundsPlayed < MAX_ROUNDS) {
+  function render() {
+    ui.display.textContent = `Score: You ${state.humanScore} - Computer ${state.computerScore}`;
+    ui.results.textContent = state.lastMessage;
+
+    ui.buttons.forEach((btn) => {
+      btn.disabled = state.gameOver;
+    });
+  }
+
+  function checkGameState() {
+    if (state.humanScore >= MAX_POINTS || state.computerScore >= MAX_POINTS) {
+      state.gameOver = true;
+
+      if (state.humanScore > state.computerScore) {
+        state.lastMessage = "You win!";
+      } else if (state.computerScore > state.humanScore) {
+        state.lastMessage = "You lose!";
+      } else {
+        state.lastMessage = "Game ends in a DRAW!";
+      }
+
+      render();
+    }
+  }
+
+  function onClick(event) {
+    if (state.gameOver) return;
+
+    const button = event.target.closest("button");
+    if (!button || !ui.controls.contains(button)) return;
+
+    const playerSelection = button.id;
+    if (!playerSelection) return;
+
     const computerChoice = getComputerChoice();
-    const humanChoice = getHumanChoice();
 
-    const { human, computer } = playRound(humanChoice, computerChoice);
+    const outcome = playRound(playerSelection, computerChoice);
 
-    humanScore += human;
-    computerScore += computer;
+    state.humanScore += outcome.human;
+    state.computerScore += outcome.computer;
+    state.lastMessage = outcome.message;
 
-    roundsPlayed++;
-    console.log(`Score: You ${humanScore} - Computer ${computerScore}`);
+    checkGameState();
+    render();
   }
 
-  if (humanScore > computerScore) {
-    console.log("You win!");
-  } else if (computerScore > humanScore) {
-    console.log("You lose!");
-  } else {
-    console.log("DRAW!");
-  }
+  ui.controls.addEventListener("click", onClick);
+  render();
 }
 
 playGame();
